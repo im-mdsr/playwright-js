@@ -1,0 +1,12 @@
+node_modules/
+.env
+.features-gen/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+.auth/
+*.log
+.DS_Store
+.vscode
+.husky
