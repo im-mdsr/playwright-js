@@ -1,0 +1,128 @@
+name: Nightly regression
+
+on:
+  schedule:
+    - cron: '0 2 * * *' # 02:00 UTC every day (scheduled runs use the default branch)
+  workflow_dispatch:
+    inputs:
+      grep:
+        description: 'Only run scenarios matching this tag or text, e.g. @smoke (empty = everything)'
+        required: false
+        default: ''
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.browser }} (shard ${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Same image as the Dockerfile, so the Linux visual baselines match what is rendered here.
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+      options: --ipc=host
+    env:
+      HOME: /root # Firefox needs a writable home inside the container
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v4
+
+      - run: npm ci
+
+      - name: Generate specs from feature files
+        run: npx bddgen
+
+      - name: Run tests
+        run: >
+          npx playwright test
+          --project=${{ matrix.browser }}
+          --shard=${{ matrix.shard }}/3
+          ${{ inputs.grep && format('--grep "{0}"', inputs.grep) || '' }}
+
+      - name: Upload Allure results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-${{ matrix.browser }}-${{ matrix.shard }}
+          path: allure-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.browser }}-${{ matrix.shard }}
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 14
+
+  report:
+    name: Build Allure report
+    needs: test
+    # Publish even when tests failed: a red night is exactly when the report matters.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Merge results from all shards
+        uses: actions/download-artifact@v4
+        with:
+          pattern: allure-results-*
+          path: allure-results
+          merge-multiple: true
+
+      # History lives in the published report itself, so the trend graph keeps growing without a
+      # separate branch. The first run (or a run before Pages is enabled) simply has none.
+      - name: Restore history from the last published report
+        run: |
+          mkdir -p allure-history
+          curl -fsSL "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/history.jsonl" \
+            -o allure-history/history.jsonl || echo "No previous history found, starting a new one."
+
+      - name: Generate Allure report
+        run: npx allure generate allure-results --clean -c allurerc.mjs
+
+      - name: Keep history next to the report for the next run
+        run: |
+          cp allure-history/history.jsonl allure-report/history.jsonl
+          touch allure-report/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: allure-report
+
+  deploy:
+    name: Publish to GitHub Pages
+    needs: report
+    if: ${{ !cancelled() && needs.report.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
