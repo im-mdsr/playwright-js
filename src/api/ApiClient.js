@@ -18,8 +18,22 @@ class ApiClient {
     return options;
   }
 
-  get(path, opts) {
-    return this.request.get(`${this.baseUrl}${path}`, this.#options(opts));
+  /**
+   * GET is safe to repeat, so a dropped connection (ECONNRESET, timeout) or a gateway error from
+   * the shared demo site is retried instead of failing the scenario. Other methods are not
+   * retried: a repeated POST could create the thing twice.
+   */
+  async get(path, opts) {
+    const attempts = 3;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        const response = await this.request.get(`${this.baseUrl}${path}`, this.#options(opts));
+        if (![502, 503, 504].includes(response.status()) || attempt === attempts) return response;
+      } catch (error) {
+        if (attempt === attempts) throw error;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+    }
   }
 
   post(path, opts) {

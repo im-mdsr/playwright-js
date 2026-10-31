@@ -10,3 +10,7 @@ allure-report/
 .DS_Store
 .vscode
 .husky
+allure-history/
+
+# Personal study notes
+docs/Toolshop-Framework-Guide.pdf

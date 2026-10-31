@@ -1,0 +1,23 @@
+# Run the suite in the official Playwright image instead of on the host.
+# Results, reports and visual baselines are mounted so they appear in the working tree.
+#   docker compose run --rm tests                                  # whole suite
+#   docker compose run --rm tests npx playwright test --grep @smoke --project=chromium
+# The npm "docker:*" scripts wrap these commands.
+services:
+  tests:
+    build: .
+    image: toolshop-tests
+    environment:
+      # Same defaults as src/config/env.js; override from the shell or a .env file next to this one.
+      BASE_URL: ${BASE_URL:-https://practicesoftwaretesting.com}
+      API_URL: ${API_URL:-https://api.practicesoftwaretesting.com}
+      DEMO_EMAIL: ${DEMO_EMAIL:-customer@practicesoftwaretesting.com}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-welcome01}
+      FEATURES: ${FEATURES:-}
+    volumes:
+      - ./allure-results:/app/allure-results
+      - ./allure-report:/app/allure-report
+      - ./playwright-report:/app/playwright-report
+      - ./test-results:/app/test-results
+      - ./snapshots:/app/snapshots
+    ipc: host

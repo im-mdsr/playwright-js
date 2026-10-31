@@ -13,9 +13,16 @@ class CartsApi {
   }
 
   async addItem(cartId, productId, quantity = 1) {
-    const response = await this.client.post(`/carts/${cartId}`, {
-      data: { product_id: productId, quantity },
-    });
+    // A cart that was created a moment ago is sometimes answered with 404 by the demo site (seen
+    // under load). Nothing was added in that case, so asking again cannot double the quantity.
+    let response;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      response = await this.client.post(`/carts/${cartId}`, {
+        data: { product_id: productId, quantity },
+      });
+      if (response.status() !== 404) break;
+      await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+    }
     if (!response.ok()) {
       throw new Error(`Could not add item to cart: HTTP ${response.status()}`);
     }
