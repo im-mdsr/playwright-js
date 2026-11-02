@@ -17,10 +17,12 @@ When('I log in with the demo customer credentials', async ({ loginPage }) => {
   await loginPage.login(demo.email, demo.password);
 });
 
+// Wrong-password attempts use a throwaway user: the site locks an account after 3 failed logins,
+// and locking the shared demo customer breaks every scenario that signs in as it.
 When(
-  'I log in with the demo customer email and password {string}',
-  async ({ loginPage }, password) => {
-    await loginPage.login(demo.email, password);
+  "I log in with a registered user's email and password {string}",
+  async ({ loginPage, newUser }, password) => {
+    await loginPage.login(newUser.email, password);
   },
 );
 

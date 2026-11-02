@@ -10,8 +10,9 @@ When('I log in through the API with the demo customer credentials', async ({ aut
   ctx.response = await authApi.login(demo.email, demo.password);
 });
 
-When('I log in through the API with a wrong password', async ({ authApi, ctx }) => {
-  ctx.response = await authApi.login(demo.email, 'Wrong#123');
+// A throwaway user, not the demo customer: 3 failed logins lock an account on the site.
+When('I log in through the API with a wrong password', async ({ authApi, newUser, ctx }) => {
+  ctx.response = await authApi.login(newUser.email, 'Wrong#123');
 });
 
 When(

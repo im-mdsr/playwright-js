@@ -11,7 +11,7 @@ Feature: Login
   @AUTH-02 @smoke @regression @ui @auth @negative
   Scenario: Login with wrong password shows error
     Given I am on the login page
-    When I log in with the demo customer email and password "Wrong#123"
+    When I log in with a registered user's email and password "Wrong#123"
     Then I should see the invalid credentials error
     And I should remain on the login page
 
